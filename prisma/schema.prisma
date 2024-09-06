@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:root@localhost:3306/fsw_food"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId], map: "accounts_user_id_fkey")
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "sessions_user_id_fkey")
+  @@map("sessions")
+}
+
+model User {
+  id                  String                   @id @default(cuid())
+  name                String?
+  email               String?                  @unique
+  emailVerified       DateTime?                @map("email_verified")
+  image               String?
+  orders              Order[]
+  favoriteRestaurants UserFavoriteRestaurant[]
+  accounts            Account[]
+  sessions            Session[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model Restaurant {
+  id                  String                   @id @default(uuid())
+  name                String
+  imageUrl            String
+  deliveryFee         Decimal                  @db.Decimal(10, 2)
+  deliveryTimeMinutes Int
+  orders              Order[]
+  products            Product[]
+  usersWhoFavorited   UserFavoriteRestaurant[]
+  categories          Category[]               @relation("CategoryToRestaurant")
+}
+
+model UserFavoriteRestaurant {
+  userId       String
+  restaurantId String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@id([userId, restaurantId])
+  @@index([restaurantId], map: "UserFavoriteRestaurant_restaurantId_fkey")
+}
+
+model Category {
+  id          String       @id @default(uuid())
+  name        String
+  imageUrl    String
+  createdAt   DateTime     @default(now())
+  products    Product[]
+  restaurants Restaurant[] @relation("CategoryToRestaurant")
+}
+
+model Product {
+  id                 String         @id @default(uuid())
+  name               String
+  description        String         @db.Text
+  imageUrl           String
+  price              Decimal        @db.Decimal(10, 2)
+  discountPercentage Int            @default(0)
+  restaurantId       String
+  categoryId         String
+  createdAt          DateTime       @default(now())
+  orderProducts      OrderProduct[]
+  category           Category       @relation(fields: [categoryId], references: [id])
+  restaurant         Restaurant     @relation(fields: [restaurantId], references: [id])
+
+  @@index([categoryId], map: "Product_categoryId_fkey")
+  @@index([restaurantId], map: "Product_restaurantId_fkey")
+}
+
+model OrderProduct {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId], map: "OrderProduct_orderId_fkey")
+  @@index([productId], map: "OrderProduct_productId_fkey")
+}
+
+model Order {
+  id                  String         @id @default(uuid())
+  userId              String
+  restaurantId        String
+  deliveryFee         Decimal        @db.Decimal(10, 2)
+  deliveryTimeMinutes Int
+  subtotalPrice       Decimal        @db.Decimal(10, 2)
+  totalPrice          Decimal        @db.Decimal(10, 2)
+  totalDiscounts      Decimal        @db.Decimal(10, 2)
+  createdAt           DateTime       @default(now())
+  status              OrderStatus
+  restaurant          Restaurant     @relation(fields: [restaurantId], references: [id])
+  user                User           @relation(fields: [userId], references: [id])
+  products            OrderProduct[]
+
+  @@index([restaurantId], map: "Order_restaurantId_fkey")
+  @@index([userId], map: "Order_userId_fkey")
+}
+
+enum OrderStatus {
+  CONFIRMED
+  CANCELED
+  PREPARING
+  DELIVERING
+  COMPLETED
+}
